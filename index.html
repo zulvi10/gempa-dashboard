@@ -2,82 +2,194 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8" />
-  <title>Dashboard Gempa Realtime | IoT ESP32</title>
+  <title>Dashboard Gempa | IoT ESP32 – BMKG Style</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <!-- Firebase v8 (lebih simpel untuk contoh ini) -->
+  <!-- Firebase v8 -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
+  <!-- Leaflet (Peta) -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #1e88e5 0, #001b3a 40%, #000814 100%);
+      background: radial-gradient(circle at top, #0d47a1 0, #001432 40%, #000814 100%);
       color: #f5f7fa;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
-    header {
-      padding: 16px 24px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
+
+    /* TOP BAR ala BMKG */
+    .topbar {
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      padding: 10px 18px;
+      border-bottom: 1px solid rgba(255,255,255,0.12);
+      background: linear-gradient(to right, rgba(13,71,161,0.95), rgba(21,101,192,0.9));
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      position: sticky;
+      top: 0;
+      z-index: 20;
     }
-    header h1 {
-      font-size: 1.4rem;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #bbdefb, #0d47a1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      color: #e3f2fd;
+      box-shadow: 0 0 0 2px rgba(255,255,255,0.6);
+    }
+    .brand-text-main {
       font-weight: 700;
-      letter-spacing: .03em;
+      letter-spacing: .12em;
+      font-size: .9rem;
       text-transform: uppercase;
     }
-    header span.badge {
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: .75rem;
-      background: rgba(33,150,243,.2);
-      border: 1px solid rgba(129,212,250,.8);
-      color: #e1f5fe;
+    .brand-text-sub {
+      font-size: .7rem;
+      color: #e3f2fd;
+      opacity: .9;
     }
+
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .top-badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: .7rem;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(227,242,253,0.7);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .top-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #00e676;
+      box-shadow: 0 0 10px #00e676;
+    }
+    .top-nav {
+      display: flex;
+      border-radius: 999px;
+      background: rgba(3,19,42,0.7);
+      border: 1px solid rgba(187,222,251,0.5);
+      overflow: hidden;
+    }
+    .top-nav button {
+      border: none;
+      outline: none;
+      padding: 6px 14px;
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      background: transparent;
+      color: #bbdefb;
+      cursor: pointer;
+    }
+    .top-nav button.active {
+      background: rgba(187,222,251,0.15);
+      color: #e3f2fd;
+    }
+
+    /* LAYOUT CONTENT */
     main {
       flex: 1;
-      padding: 16px;
+      padding: 14px 16px 16px;
+    }
+
+    .page {
+      display: none;
+      animation: fadeIn .25s ease-out;
+    }
+    .page.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .grid-main {
       display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr);
-      gap: 16px;
+      grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.4fr);
+      gap: 14px;
     }
-    @media (max-width: 900px) {
-      main { grid-template-columns: minmax(0, 1fr); }
+    @media (max-width: 960px) {
+      .grid-main { grid-template-columns: minmax(0, 1fr); }
     }
+
     .card {
-      background: rgba(3, 20, 46, 0.9);
+      background: rgba(3, 20, 46, 0.92);
       border-radius: 16px;
       border: 1px solid rgba(144,202,249,0.25);
-      padding: 16px 18px;
+      padding: 14px 16px;
       box-shadow: 0 16px 40px rgba(0,0,0,0.55);
       backdrop-filter: blur(18px);
     }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
     .card h2 {
-      font-size: .95rem;
+      font-size: .9rem;
       text-transform: uppercase;
-      letter-spacing: .08em;
-      margin-bottom: 10px;
+      letter-spacing: .1em;
       color: #90caf9;
     }
+    .card-sub {
+      font-size: .7rem;
+      color: #b0bec5;
+    }
+
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
+      margin-top: 6px;
+      margin-bottom: 4px;
     }
-    @media (max-width: 600px) {
+    @media (max-width: 700px) {
       .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
+
     .kpi {
       padding: 10px 12px;
       border-radius: 12px;
@@ -92,7 +204,7 @@
       margin-bottom: 4px;
     }
     .kpi-value {
-      font-size: 1.3rem;
+      font-size: 1.4rem;
       font-weight: 700;
     }
     .kpi-sub {
@@ -100,6 +212,7 @@
       font-size: .7rem;
       color: #90a4ae;
     }
+
     .status-pill {
       display: inline-flex;
       align-items: center;
@@ -110,7 +223,7 @@
       margin-top: 4px;
     }
     .status-safe {
-      background: rgba(46, 125, 50, 0.2);
+      background: rgba(46, 125, 50, 0.18);
       border: 1px solid rgba(129, 199, 132, .8);
       color: #c8e6c9;
     }
@@ -133,14 +246,67 @@
       gap: 10px;
       font-size: .75rem;
       color: #b0bec5;
-      margin-top: 8px;
+      margin-top: 6px;
     }
-    .meta-row span {
-      opacity: .9;
-    }
+    .meta-row span { opacity: .9; }
     .meta-row strong { color: #e3f2fd; }
 
-    canvas { max-height: 340px; }
+    canvas { max-height: 320px; }
+
+    /* MAP */
+    #map {
+      width: 100%;
+      height: 260px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(144,202,249,0.4);
+      margin-top: 6px;
+    }
+
+    /* PAGE RIWAYAT */
+    .history-intro {
+      font-size: .8rem;
+      color: #b0bec5;
+      margin-bottom: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .78rem;
+    }
+    thead {
+      background: rgba(21,101,192,0.7);
+    }
+    th, td {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(120,144,156,0.4);
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-weight: 600;
+      color: #e3f2fd;
+    }
+    tbody tr:nth-child(even) {
+      background: rgba(3, 19, 42, 0.85);
+    }
+    tbody tr:nth-child(odd) {
+      background: rgba(3, 25, 54, 0.85);
+    }
+    .badge-small {
+      display: inline-flex;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: .7rem;
+      border: 1px solid rgba(255,255,255,0.4);
+    }
+    .badge-gempa {
+      background: rgba(239,83,80,0.15);
+      border-color: rgba(255,205,210,0.9);
+      color: #ffcdd2;
+    }
 
     footer {
       padding: 6px 14px 10px;
@@ -152,185 +318,351 @@
   </style>
 </head>
 <body>
-<header>
-  <div>
-    <h1>Monitoring Gempa Realtime – ESP32 & MPU6050</h1>
-    <div style="font-size:.8rem; color:#bbdefb; margin-top:4px;">
-      Data sumber: Firebase Realtime Database – Project <strong>iot-gempa-esp32</strong>
-    </div>
-  </div>
-  <span class="badge">LIVE • Realtime Feed</span>
-</header>
-
-<main>
-  <!-- Kartu grafik utama -->
-  <section class="card">
-    <h2>Grafik Magnitudo Getaran (Realtime)</h2>
-    <p style="font-size:.8rem; color:#b0bec5; margin-bottom:10px;">
-      Menampilkan histori perubahan magnitudo berdasarkan data sensor MPU6050 dari perangkat IoT kamu.
-    </p>
-    <canvas id="magChart"></canvas>
-  </section>
-
-  <!-- Kartu ringkasan ala BMKG -->
-  <section class="card">
-    <h2>Ringkasan Kondisi Terkini</h2>
-
-    <div class="kpi-grid">
-      <div class="kpi">
-        <div class="kpi-label">Magnitudo</div>
-        <div class="kpi-value" id="magValue">–</div>
-        <div class="kpi-sub">Threshold: 1.50</div>
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">G</div>
+      <div>
+        <div class="brand-text-main">IOT GEMPA ESP32</div>
+        <div class="brand-text-sub">Monitoring Getaran • Prototype ala BMKG</div>
       </div>
-      <div class="kpi">
-        <div class="kpi-label">Status Sistem</div>
-        <div id="statusPill" class="status-pill status-safe">
-          <span class="dot" id="statusDot"></span>
-          <span id="statusText">Aman</span>
+    </div>
+
+    <div class="top-right">
+      <div class="top-badge">
+        <span class="top-dot"></span>
+        <span>LIVE Realtime</span>
+      </div>
+      <div class="top-nav">
+        <button id="tabRealtime" class="active">Realtime</button>
+        <button id="tabHistory">Riwayat</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- PAGE 1: REALTIME -->
+    <section id="pageRealtime" class="page active">
+      <div class="grid-main">
+        <!-- KIRI: GRAFIK -->
+        <section class="card">
+          <div class="card-header">
+            <h2>Grafik Magnitudo Getaran</h2>
+            <span class="card-sub">Data dari Firebase – node <code>gempa/data</code></span>
+          </div>
+          <p class="card-sub" style="margin-bottom:8px;">
+            Menampilkan histori perubahan magnitudo dari sensor MPU6050 yang terpasang pada modul ESP32.
+          </p>
+          <canvas id="magChart"></canvas>
+        </section>
+
+        <!-- KANAN: RINGKASAN + PETA -->
+        <section class="card">
+          <div class="card-header">
+            <h2>Ringkasan Kondisi & Peta Node</h2>
+            <span class="card-sub">Terinspirasi tampilan monitoring BMKG</span>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi">
+              <div class="kpi-label">Magnitudo</div>
+              <div class="kpi-value" id="magValue">–</div>
+              <div class="kpi-sub">Ambang batas: 1.50</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Status Sistem</div>
+              <div id="statusPill" class="status-pill status-safe">
+                <span class="dot" id="statusDot"></span>
+                <span id="statusText">Aman</span>
+              </div>
+              <div class="kpi-sub" id="statusDesc">Belum ada aktivitas gempa signifikan.</div>
+            </div>
+            <div class="kpi">
+              <div class="kpi-label">Akselerasi (ax / ay / az)</div>
+              <div class="kpi-value" style="font-size:1rem;" id="accValue">– / – / –</div>
+              <div class="kpi-sub">Satuan relatif terhadap gravitasi (g)</div>
+            </div>
+          </div>
+
+          <div class="meta-row">
+            <span>📍 Lokasi node: <strong>Bojonegoro (contoh, bisa diganti)</strong></span>
+            <span>🕒 Update terakhir: <strong id="lastUpdate">–</strong></span>
+            <span>🧠 Mode: <strong>Monitoring otomatis</strong></span>
+          </div>
+
+          <div id="map"></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- PAGE 2: RIWAYAT -->
+    <section id="pageHistory" class="page">
+      <section class="card">
+        <div class="card-header">
+          <h2>Riwayat Kejadian Gempa (Sesi Dashboard)</h2>
+          <span class="card-sub">Terisi ketika magnitudo melampaui ambang batas.</span>
         </div>
-        <div class="kpi-sub" id="statusDesc">Belum ada aktivitas gempa signifikan.</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">Akselerasi (ax / ay / az)</div>
-        <div class="kpi-value" style="font-size:1rem;" id="accValue">– / – / –</div>
-        <div class="kpi-sub">Satuan relatif terhadap gravitasi (g)</div>
-      </div>
-    </div>
+        <p class="history-intro">
+          Tabel ini menyimpan riwayat gempa yang terdeteksi selama dashboard ini terbuka.
+          Setiap kali <strong>magnitude &gt; 1.5</strong>, satu baris baru akan ditambahkan.
+          Jika ingin menyimpan permanen ke Firebase (bukan hanya sesi ini), nanti kita bisa upgrade strukturnya.
+        </p>
 
-    <div class="meta-row">
-      <span>📍 Lokasi: <strong>Node IoT Gempa</strong></span>
-      <span>🕒 Update terakhir: <strong id="lastUpdate">–</strong></span>
-      <span>🧠 Mode: <strong>Monitoring otomatis</strong></span>
-    </div>
-  </section>
-</main>
+        <div style="overflow-x:auto; margin-top:6px;">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Waktu</th>
+                <th>Magnitudo</th>
+                <th>ax</th>
+                <th>ay</th>
+                <th>az</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody">
+              <tr>
+                <td colspan="7" style="text-align:center; padding:10px; color:#b0bec5;">
+                  Belum ada kejadian gempa terdata pada sesi ini.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
 
-<footer>
-  Prototype dashboard &copy; <span id="year"></span> – IoT Gempa ESP32 • Tampilan terinspirasi BMKG
-</footer>
+  <footer>
+    Prototype dashboard &copy; <span id="year"></span> – IoT Gempa ESP32 • Tampilan terinspirasi BMKG & Leaflet Map
+  </footer>
 
-<script>
-  // -----------------------------------------
-  // 1. Konfigurasi Firebase (ISI DENGAN PUNYA KAMU)
-  // -----------------------------------------
-const firebaseConfig = {
-  apiKey: "AIzaSyDZGdpB8L8UQXSLDJcp4ux6pmw-ry5FMqw",
-  authDomain: "iot-gempa-esp32.firebaseapp.com",
-  databaseURL: "https://iot-gempa-esp32-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "iot-gempa-esp32",
-  storageBucket: "iot-gempa-esp32.firebasestorage.app",
-  messagingSenderId: "2994165126",
-  appId: "1:2994165126:web:661f0b380e8d6d552bc807",
-  measurementId: "G-BSPHS44JPE"
-};
-  firebase.initializeApp(firebaseConfig);
-  const dbRef = firebase.database().ref("gempa/data");
+  <script>
+    // --------------------------------------------------
+    // 0. TAB / NAVIGASI HALAMAN
+    // --------------------------------------------------
+    const tabRealtimeBtn = document.getElementById("tabRealtime");
+    const tabHistoryBtn  = document.getElementById("tabHistory");
+    const pageRealtime   = document.getElementById("pageRealtime");
+    const pageHistory    = document.getElementById("pageHistory");
 
-  // -----------------------------------------
-  // 2. Setup Chart.js untuk grafik magnitudo
-  // -----------------------------------------
-  const ctx = document.getElementById("magChart").getContext("2d");
-
-  const maxPoints = 40; // banyak titik histori
-  const magData = [];
-  const timeLabels = [];
-
-  const magChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: timeLabels,
-      datasets: [{
-        label: "Magnitudo",
-        data: magData,
-        borderWidth: 2,
-        fill: false,
-        tension: 0.25,
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          labels: {
-            color: "#e3f2fd"
-          }
-        }
-      },
-      scales: {
-        x: {
-          ticks: { color: "#b0bec5", maxRotation: 0, autoSkip: true },
-          grid: { color: "rgba(255,255,255,0.06)" }
-        },
-        y: {
-          ticks: { color: "#b0bec5" },
-          grid: { color: "rgba(255,255,255,0.06)" },
-          beginAtZero: true
-        }
+    function setPage(page) {
+      if (page === "realtime") {
+        pageRealtime.classList.add("active");
+        pageHistory.classList.remove("active");
+        tabRealtimeBtn.classList.add("active");
+        tabHistoryBtn.classList.remove("active");
+      } else {
+        pageRealtime.classList.remove("active");
+        pageHistory.classList.add("active");
+        tabRealtimeBtn.classList.remove("active");
+        tabHistoryBtn.classList.add("active");
       }
     }
-  });
 
-  // -----------------------------------------
-  // 3. Update UI & Grafik setiap ada perubahan data di Firebase
-  // -----------------------------------------
-  const magValueEl = document.getElementById("magValue");
-  const accValueEl = document.getElementById("accValue");
-  const statusPillEl = document.getElementById("statusPill");
-  const statusDotEl  = document.getElementById("statusDot");
-  const statusTextEl = document.getElementById("statusText");
-  const statusDescEl = document.getElementById("statusDesc");
-  const lastUpdateEl = document.getElementById("lastUpdate");
+    tabRealtimeBtn.addEventListener("click", () => setPage("realtime"));
+    tabHistoryBtn.addEventListener("click", () => setPage("history"));
 
-  const MAG_THRESHOLD = 1.5;
+    // --------------------------------------------------
+    // 1. KONFIGURASI FIREBASE (PUNYA KAMU)
+    // --------------------------------------------------
+    const firebaseConfig = {
+      apiKey: "AIzaSyDZGdpB8L8UQXSLDJcp4ux6pmw-ry5FMqw",
+      authDomain: "iot-gempa-esp32.firebaseapp.com",
+      databaseURL: "https://iot-gempa-esp32-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "iot-gempa-esp32",
+      storageBucket: "iot-gempa-esp32.firebasestorage.app",
+      messagingSenderId: "2994165126",
+      appId: "1:2994165126:web:661f0b380e8d6d552bc807",
+      measurementId: "G-BSPHS44JPE"
+    };
 
-  dbRef.on("value", (snap) => {
-    const data = snap.val();
-    if (!data) return;
+    firebase.initializeApp(firebaseConfig);
+    const dbRef = firebase.database().ref("gempa/data");
 
-    const ax = data.ax ?? 0;
-    const ay = data.ay ?? 0;
-    const az = data.az ?? 0;
-    const mag = data.magnitude ?? 0;
-    const status = data.status ?? "Aman";
-    const ts = data.timestamp ?? 0;
+    // --------------------------------------------------
+    // 2. SETUP CHART.JS (GRAFIK MAGNITUDO)
+    // --------------------------------------------------
+    const ctx = document.getElementById("magChart").getContext("2d");
+    const maxPoints = 40;
+    const magData = [];
+    const timeLabels = [];
 
-    // Update value di kartu
-    magValueEl.textContent = mag.toFixed(2);
-    accValueEl.textContent = `${ax.toFixed(2)} / ${ay.toFixed(2)} / ${az.toFixed(2)}`;
+    const magChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: timeLabels,
+        datasets: [{
+          label: "Magnitudo",
+          data: magData,
+          borderWidth: 2,
+          fill: false,
+          tension: 0.25,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            labels: { color: "#e3f2fd" }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: "#b0bec5", maxRotation: 0, autoSkip: true },
+            grid: { color: "rgba(255,255,255,0.06)" }
+          },
+          y: {
+            ticks: { color: "#b0bec5" },
+            grid: { color: "rgba(255,255,255,0.06)" },
+            beginAtZero: true
+          }
+        }
+      }
+    });
 
-    const date = new Date();
-    lastUpdateEl.textContent = date.toLocaleString("id-ID");
+    // --------------------------------------------------
+    // 3. MAP LEAFLET (PETA GEMPA)
+    // --------------------------------------------------
+    // Koordinat contoh Bojonegoro – bisa diubah sesuai lokasi node
+    const NODE_LAT = -7.150975;
+    const NODE_LNG = 111.882575;
 
-    // Status gaya BMKG
-    if (mag > MAG_THRESHOLD) {
-      statusPillEl.classList.remove("status-safe");
-      statusPillEl.classList.add("status-alert");
-      statusDotEl.classList.add("alert");
-      statusTextEl.textContent = "Waspada – Gempa Terdeteksi";
-      statusDescEl.textContent = "Segera lakukan langkah mitigasi jika intensitas berlanjut.";
-    } else {
-      statusPillEl.classList.remove("status-alert");
-      statusPillEl.classList.add("status-safe");
-      statusDotEl.classList.remove("alert");
-      statusTextEl.textContent = "Aman";
-      statusDescEl.textContent = "Belum ada aktivitas gempa yang signifikan.";
+    const map = L.map("map").setView([NODE_LAT, NODE_LNG], 8);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+
+    const marker = L.circleMarker([NODE_LAT, NODE_LNG], {
+      radius: 10,
+      color: "#00e676",
+      fillColor: "#00e676",
+      fillOpacity: 0.8
+    }).addTo(map);
+
+    marker.bindPopup("<b>Node Gempa ESP32</b><br>Bojonegoro (contoh posisi).");
+
+    function updateMarkerColor(mag) {
+      if (mag > MAG_THRESHOLD) {
+        marker.setStyle({ color: "#ff5252", fillColor: "#ff5252" });
+        marker.setRadius(12);
+      } else {
+        marker.setStyle({ color: "#00e676", fillColor: "#00e676" });
+        marker.setRadius(10);
+      }
     }
 
-    // Update grafik
-    const timeLabel = date.toLocaleTimeString("id-ID", { hour12: false });
-    timeLabels.push(timeLabel);
-    magData.push(mag);
+    // --------------------------------------------------
+    // 4. UPDATE UI & GRAFIK & MAP DARI FIREBASE
+    // --------------------------------------------------
+    const magValueEl   = document.getElementById("magValue");
+    const accValueEl   = document.getElementById("accValue");
+    const statusPillEl = document.getElementById("statusPill");
+    const statusDotEl  = document.getElementById("statusDot");
+    const statusTextEl = document.getElementById("statusText");
+    const statusDescEl = document.getElementById("statusDesc");
+    const lastUpdateEl = document.getElementById("lastUpdate");
+    const historyBody  = document.getElementById("historyBody");
 
-    if (timeLabels.length > maxPoints) {
-      timeLabels.shift();
-      magData.shift();
+    const MAG_THRESHOLD = 1.5;
+    let lastWasGempa = false;
+    const historyData = [];
+
+    function renderHistoryTable() {
+      if (historyData.length === 0) {
+        historyBody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align:center; padding:10px; color:#b0bec5;">
+              Belum ada kejadian gempa terdata pada sesi ini.
+            </td>
+          </tr>`;
+        return;
+      }
+
+      historyBody.innerHTML = "";
+      historyData.forEach((item, idx) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${idx + 1}</td>
+          <td>${item.time}</td>
+          <td>${item.mag.toFixed(2)}</td>
+          <td>${item.ax.toFixed(2)}</td>
+          <td>${item.ay.toFixed(2)}</td>
+          <td>${item.az.toFixed(2)}</td>
+          <td><span class="badge-small badge-gempa">Gempa</span></td>
+        `;
+        historyBody.appendChild(tr);
+      });
     }
 
-    magChart.update();
-  });
+    dbRef.on("value", (snap) => {
+      const data = snap.val();
+      if (!data) return;
 
-  // Tahun di footer
-  document.getElementById("year").textContent = new Date().getFullYear();
-</script>
+      const ax  = data.ax ?? 0;
+      const ay  = data.ay ?? 0;
+      const az  = data.az ?? 0;
+      const mag = data.magnitude ?? 0;
+      const status = data.status ?? "Aman";
+      const ts  = data.timestamp ?? 0;
+
+      // Update KPI
+      magValueEl.textContent = mag.toFixed(2);
+      accValueEl.textContent = `${ax.toFixed(2)} / ${ay.toFixed(2)} / ${az.toFixed(2)}`;
+
+      const now = new Date();
+      lastUpdateEl.textContent = now.toLocaleString("id-ID");
+
+      // Status ala BMKG
+      if (mag > MAG_THRESHOLD) {
+        statusPillEl.classList.remove("status-safe");
+        statusPillEl.classList.add("status-alert");
+        statusDotEl.classList.add("alert");
+        statusTextEl.textContent = "Waspada – Gempa Terdeteksi";
+        statusDescEl.textContent = "Segera lakukan langkah mitigasi jika intensitas berlanjut.";
+      } else {
+        statusPillEl.classList.remove("status-alert");
+        statusPillEl.classList.add("status-safe");
+        statusDotEl.classList.remove("alert");
+        statusTextEl.textContent = "Aman";
+        statusDescEl.textContent = "Belum ada aktivitas gempa yang signifikan.";
+      }
+
+      // Update marker warna
+      updateMarkerColor(mag);
+
+      // Update grafik
+      const timeLabel = now.toLocaleTimeString("id-ID", { hour12: false });
+      timeLabels.push(timeLabel);
+      magData.push(mag);
+
+      if (timeLabels.length > maxPoints) {
+        timeLabels.shift();
+        magData.shift();
+      }
+      magChart.update();
+
+      // Simpan ke riwayat SESI jika crossing dari aman -> gempa
+      const isGempa = mag > MAG_THRESHOLD;
+      if (isGempa && !lastWasGempa) {
+        historyData.push({
+          time: now.toLocaleString("id-ID"),
+          mag,
+          ax,
+          ay,
+          az
+        });
+        renderHistoryTable();
+      }
+      lastWasGempa = isGempa;
+    });
+
+    // --------------------------------------------------
+    // 5. FOOTER TAHUN
+    // --------------------------------------------------
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
 </body>
 </html>
